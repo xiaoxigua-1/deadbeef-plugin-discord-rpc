@@ -36,10 +36,22 @@ static void update_playback_info(playback_info_t *info) {
 
   deadbeef->pl_lock();
 
+  ddb_playlist_t *pl = deadbeef->plt_get_curr();
   const char *artist = deadbeef->pl_find_meta(track, "artist");
   const char *title = deadbeef->pl_find_meta(track, "title");
   const char *album = deadbeef->pl_find_meta(track, "album");
-  const char *filename = deadbeef->pl_find_meta(track, ":URI");
+  const char *uri = deadbeef->pl_find_meta(track, ":URI");
+
+  if (title) {
+    strncpy(info->title, title, sizeof(info->title) - 1);
+  } else if (uri) {
+    const char *slash = strrchr(uri, '/');
+    const char *title = slash ? slash + 1 : uri;
+
+    strncpy(info->title, title, sizeof(info->title) - 1);
+  } else {
+    strcpy(info->title, "Unknown Title");
+  }
 
   if (artist) {
     strncpy(info->artist, artist, sizeof(info->artist) - 1);
@@ -47,20 +59,10 @@ static void update_playback_info(playback_info_t *info) {
     strcpy(info->artist, "Unknown Artist");
   }
 
-  if (title) {
-    strncpy(info->title, title, sizeof(info->title) - 1);
-  } else {
-    strcpy(info->title, "Unknown Title");
-  }
-
   if (album) {
     strncpy(info->album, album, sizeof(info->album) - 1);
   } else {
     strcpy(info->album, "Unknown Album");
-  }
-
-  if (filename) {
-    strncpy(info->filename, filename, sizeof(info->filename) - 1);
   }
 
   deadbeef->pl_unlock();

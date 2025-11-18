@@ -4,7 +4,6 @@ typedef struct {
   char artist[256];
   char title[256];
   char album[256];
-  char filename[512];
 
   float current_position;
   float total_duration;
