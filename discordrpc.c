@@ -222,7 +222,39 @@ static DB_misc_t plugin = {
     .plugin.name = "Discord Rich Presence",
     .plugin.descr = "Updates Discord Rich Presence with the current track info "
                     "from DeadBeef.",
-    .plugin.copyright = "2025",
+    .plugin.website =
+        "https://github.com/xiaoxigua-1/deadbeef-plugin-discord-rpc",
+
+    .plugin.copyright =
+        "Copyright (c) 2025 xiao xigua"
+        "\n"
+        "Permission is hereby granted, free of charge, to any person obtaining "
+        "a copy"
+        "of this software and associated documentation files (the "
+        "\"Software\"), to deal"
+        "in the Software without restriction, including without limitation the "
+        "rights"
+        "to use, copy, modify, merge, publish, distribute, sublicense, and/or "
+        "sell"
+        "copies of the Software, and to permit persons to whom the Software is"
+        "furnished to do so, subject to the following conditions:"
+        "\n"
+        "The above copyright notice and this permission notice shall be "
+        "included in all"
+        "copies or substantial portions of the Software."
+        "\n"
+        "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, "
+        "EXPRESS OR"
+        "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF "
+        "MERCHANTABILITY,"
+        "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT "
+        "SHALL THE"
+        "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER"
+        "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, "
+        "ARISING FROM,"
+        "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER "
+        "DEALINGS IN THE"
+        "SOFTWARE.",
 
     .plugin.start = discordrpc_start,
     .plugin.stop = discordrpc_stop,
