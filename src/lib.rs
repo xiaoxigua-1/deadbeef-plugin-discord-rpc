@@ -1,0 +1,211 @@
+mod deadbeef;
+mod discordrpc;
+mod error;
+mod util;
+
+use std::{
+    ffi::{CStr, c_void},
+    ptr::null_mut,
+    sync::Mutex,
+};
+
+use deadbeef::DB_functions_t;
+use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
+use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
+
+use crate::{
+    deadbeef::{
+        DB_EV_CONFIGCHANGED, DB_EV_SEEKED, DB_EV_SONGCHANGED, DB_PLUGIN_MISC, DB_misc_t,
+        DB_plugin_s, DB_plugin_t, DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2, ddb_event_trackchange_t,
+    },
+    discordrpc::{Status, clear_activity, create_discord_client, update_activity},
+    error::{Error, Result},
+};
+
+static API: OnceCell<&DB_functions_t> = OnceCell::new();
+lazy_static! {
+    static ref DRPC: Mutex<Option<DiscordIpcClient>> = Mutex::new(None);
+    static ref DISCORD_CLIENT_ID: Mutex<Option<String>> = Mutex::new(None);
+}
+
+static PLUGIN_ID: &CStr = c"discordrpc";
+static PLUGIN_NAME: &CStr = c"Discord Rich Presence";
+static PLUGIN_DESC: &CStr =
+    c"Updates Discord Rich Presence with the current track info from DeadBeef.";
+static PLUGIN_WEBSITE: &CStr = c"https://github.com/xiaoxigua-1/deadbeef-plugin-discord-rpc";
+static PLUGIN_COPYRIGHT: &CStr = unsafe {
+    CStr::from_bytes_with_nul_unchecked(include_bytes!(concat!(env!("OUT_DIR"), "/LICENSE")))
+};
+static PLUGIN_SETTING_DLG: &CStr = cr#"
+property "Enable" checkbox discordrpc.enable 1;
+property "Client ID" entry discordrpc.client_id "1440255782418387026";
+property "Title format" entry discordrpc.title_script "%title%$if(%ispaused%,' ('paused')')";
+property "State format" entry discordrpc.state_script "%artist%";
+property "Display time" select[3] discord_presence.end_timestamp2 1 "Only elapsed time" "Full track time" "Don't display time";
+property "Icon text format" entry discordrpc.icon_script "%album%";
+"#;
+
+fn config_update() -> Result<()> {
+    let api = API.get().unwrap();
+    let mut drpc = DRPC.lock().unwrap();
+    let enable = api.conf_get_int(c"discordrpc.enable".as_ptr(), 1)?;
+    let client_id = api.conf_get_str(
+        c"discordrpc.client_id".as_ptr(),
+        c"1440255782418387026".as_ptr(),
+    )?;
+
+    if let Some(id) = DISCORD_CLIENT_ID.lock().unwrap().as_ref()
+        && (id != &client_id || enable == 0)
+        && let Some(mut client) = drpc.take()
+    {
+        println!("Shutting down Discord RPC client with Client ID: {}", id);
+        client.close().map_err(Error::DiscordFailed)?;
+    }
+
+    if drpc.is_none()
+        && let Ok(mut client) = create_discord_client()
+        && enable == 1
+    {
+        client.connect().unwrap();
+        println!("Starting Discord RPC client with Client ID: {}", client_id);
+        *DISCORD_CLIENT_ID.lock().unwrap() = Some(client_id);
+        *drpc = Some(client);
+    }
+
+    Ok(())
+}
+
+#[repr(C)]
+struct UpdateThreadData {
+    status: Status,
+    nextitem_length: Option<f32>,
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn create_update_thread(ptr: *mut c_void) {
+    let data = ptr as *mut UpdateThreadData;
+    let status = unsafe { (*data).status };
+    let nextitem_length = unsafe { (*data).nextitem_length };
+
+    update_activity(status, nextitem_length).unwrap();
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn clear_activity_thread(_: *mut c_void) {
+    clear_activity().unwrap();
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn message(id: u32, ctx: usize, _: u32, _: u32) -> i32 {
+    let api = API.get().unwrap();
+    let enable = api.conf_get_int(c"discordrpc.enable".as_ptr(), 1);
+
+    println!("Received message ID: {}", id);
+    let ret = match id {
+        DB_EV_CONFIGCHANGED => config_update().ok().is_some(),
+        DB_EV_SONGCHANGED => {
+            let ctx = ctx as *mut ddb_event_trackchange_t;
+
+            if !unsafe { (*ctx).to.is_null() } {
+                let nextitem_length = api.pl_get_item_duration(unsafe { (*ctx).to }).ok();
+
+                let data = Box::new(UpdateThreadData {
+                    status: Status::Songchanged,
+                    nextitem_length,
+                });
+
+                api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
+                    .ok()
+                    .is_some()
+            } else {
+                api.thread_start(clear_activity_thread, null_mut())
+                    .ok()
+                    .is_some()
+            }
+        }
+        DB_EV_SEEKED => {
+            if let Ok(enable) = enable
+                && enable == 1
+            {
+                let data = Box::new(UpdateThreadData {
+                    status: Status::Seeked,
+                    nextitem_length: None,
+                });
+                api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
+                    .ok()
+                    .is_some()
+            } else {
+                true
+            }
+        }
+        _ => false,
+    };
+
+    ret as i32
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn stop() -> i32 {
+    0
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn start() -> i32 {
+    config_update().ok().is_some() as i32
+}
+
+/// # Safety
+///
+/// This function is `unsafe` because it dereferences a raw pointer `ptr`.
+/// The caller must ensure that:
+/// - `ptr` is non-null and points to a valid `DB_functions_t`.
+/// - The memory pointed to by `ptr` is valid for the duration of this function.
+///
+/// The returned pointer is a raw pointer to a heap-allocated `DB_plugin_t`.
+/// The caller is responsible for eventually converting it back to a `Box` and dropping it,
+/// otherwise a memory leak will occur.
+///
+/// All static strings used (PLUGIN_ID, PLUGIN_NAME, etc.) must be valid for the program's lifetime.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn discordrpc_load(ptr: *const DB_functions_t) -> *mut DB_plugin_t {
+    unsafe {
+        API.set(&*ptr).unwrap();
+    }
+
+    let plugin = Box::new(DB_misc_t {
+        plugin: DB_plugin_s {
+            api_vmajor: 1,
+            api_vminor: 0,
+
+            version_major: 0,
+            version_minor: 1,
+
+            flags: DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2,
+            type_: DB_PLUGIN_MISC as i32,
+
+            id: PLUGIN_ID.as_ptr(),
+            name: PLUGIN_NAME.as_ptr(),
+            descr: PLUGIN_DESC.as_ptr(),
+            website: PLUGIN_WEBSITE.as_ptr(),
+            copyright: PLUGIN_COPYRIGHT.as_ptr(),
+
+            configdialog: PLUGIN_SETTING_DLG.as_ptr(),
+
+            start: Some(start),
+            stop: Some(stop),
+            message: Some(message),
+
+            command: None,
+            connect: None,
+            disconnect: None,
+            exec_cmdline: None,
+            get_actions: None,
+            reserved1: 0,
+            reserved2: 0,
+            reserved3: 0,
+        },
+    });
+
+    Box::into_raw(plugin) as *mut DB_plugin_t
+}
