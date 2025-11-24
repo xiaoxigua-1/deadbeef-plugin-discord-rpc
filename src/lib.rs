@@ -59,7 +59,6 @@ fn config_update() -> Result<()> {
         && (id != &client_id || enable == 0)
         && let Some(mut client) = drpc.take()
     {
-        println!("Shutting down Discord RPC client with Client ID: {}", id);
         client.close().map_err(Error::DiscordFailed)?;
     }
 
@@ -68,7 +67,6 @@ fn config_update() -> Result<()> {
         && enable == 1
     {
         client.connect().unwrap();
-        println!("Starting Discord RPC client with Client ID: {}", client_id);
         *DISCORD_CLIENT_ID.lock().unwrap() = Some(client_id);
         *drpc = Some(client);
     }
@@ -101,13 +99,13 @@ extern "C" fn message(id: u32, ctx: usize, _: u32, _: u32) -> i32 {
     let api = API.get().unwrap();
     let enable = api.conf_get_int(c"discordrpc.enable".as_ptr(), 1);
 
-    println!("Received message ID: {}", id);
     let ret = match id {
         DB_EV_CONFIGCHANGED => config_update().ok().is_some(),
         DB_EV_SONGCHANGED => {
+            let enable = DRPC.lock().unwrap().is_some();
             let ctx = ctx as *mut ddb_event_trackchange_t;
 
-            if !unsafe { (*ctx).to.is_null() } {
+            if enable && !unsafe { (*ctx).to.is_null() } {
                 let nextitem_length = api.pl_get_item_duration(unsafe { (*ctx).to }).ok();
 
                 let data = Box::new(UpdateThreadData {
@@ -147,7 +145,13 @@ extern "C" fn message(id: u32, ctx: usize, _: u32, _: u32) -> i32 {
 
 #[unsafe(no_mangle)]
 extern "C" fn stop() -> i32 {
-    0
+    let mut drpc = DRPC.lock().unwrap();
+
+    if let Some(client) = drpc.as_mut() {
+        client.close().map_err(Error::DiscordFailed).ok().is_some() as i32
+    } else {
+        0
+    }
 }
 
 #[unsafe(no_mangle)]

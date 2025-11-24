@@ -23,8 +23,6 @@ pub enum Status {
 pub fn clear_activity() -> Result<()> {
     let mut drpc = DRPC.lock().unwrap();
 
-    println!("Clearing Discord RPC activity");
-
     if let Some(drpc) = &mut *drpc {
         drpc.clear_activity().map_err(Error::DiscordFailed)?;
     }
@@ -91,14 +89,7 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
         _ => {}
     }
 
-    println!(
-        "Updating Discord RPC: details='{}', state='{}', icon_text='{}', start_timestamp={}, end_timestamp={}",
-        details, state, icon_text, start_timestamp, end_timestamp
-    );
-
     if let Some(drpc) = &mut *drpc {
-        println!("Setting Discord RPC activity");
-
         drpc.set_activity(
             Activity::new()
                 .details(&details)
@@ -108,8 +99,6 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
                 .activity_type(ActivityType::Listening),
         )
         .map_err(Error::DiscordFailed)?;
-
-        println!("Discord RPC activity set successfully");
     } else {
         return Err(Error::MissingFunction);
     }
