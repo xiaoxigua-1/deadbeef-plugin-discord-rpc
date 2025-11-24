@@ -16,8 +16,9 @@ use once_cell::sync::OnceCell;
 
 use crate::{
     deadbeef::{
-        DB_EV_CONFIGCHANGED, DB_EV_SEEKED, DB_EV_SONGCHANGED, DB_PLUGIN_MISC, DB_misc_t,
-        DB_plugin_s, DB_plugin_t, DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2, ddb_event_trackchange_t,
+        DB_EV_CONFIGCHANGED, DB_EV_PAUSED, DB_EV_SEEKED, DB_EV_SONGCHANGED, DB_EV_STOP,
+        DB_PLUGIN_MISC, DB_misc_t, DB_plugin_s, DB_plugin_t, DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2,
+        ddb_event_trackchange_t,
     },
     discordrpc::{Status, clear_activity, create_discord_client, update_activity},
     error::{Error, Result},
@@ -95,17 +96,19 @@ extern "C" fn clear_activity_thread(_: *mut c_void) {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn message(id: u32, ctx: usize, _: u32, _: u32) -> i32 {
+extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
     let api = API.get().unwrap();
     let enable = api.conf_get_int(c"discordrpc.enable".as_ptr(), 1);
 
     let ret = match id {
         DB_EV_CONFIGCHANGED => config_update().ok().is_some(),
         DB_EV_SONGCHANGED => {
-            let enable = DRPC.lock().unwrap().is_some();
             let ctx = ctx as *mut ddb_event_trackchange_t;
 
-            if enable && !unsafe { (*ctx).to.is_null() } {
+            if let Ok(enable) = enable
+                && enable == 1
+                && !unsafe { (*ctx).to.is_null() }
+            {
                 let nextitem_length = api.pl_get_item_duration(unsafe { (*ctx).to }).ok();
 
                 let data = Box::new(UpdateThreadData {
@@ -131,6 +134,38 @@ extern "C" fn message(id: u32, ctx: usize, _: u32, _: u32) -> i32 {
                     nextitem_length: None,
                 });
                 api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
+                    .ok()
+                    .is_some()
+            } else {
+                true
+            }
+        }
+        DB_EV_PAUSED => {
+            if let Ok(enable) = enable
+                && enable == 1
+            // TODO: Hide on paused
+            {
+                println!("{}", p1);
+                let data = Box::new(UpdateThreadData {
+                    status: if p1 == 1 {
+                        Status::Paused
+                    } else {
+                        Status::Start
+                    },
+                    nextitem_length: None,
+                });
+                api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
+                    .ok()
+                    .is_some()
+            } else {
+                true
+            }
+        }
+        DB_EV_STOP => {
+            if let Ok(enable) = enable
+                && enable == 1
+            {
+                api.thread_start(clear_activity_thread, null_mut())
                     .ok()
                     .is_some()
             } else {

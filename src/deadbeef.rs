@@ -1,6 +1,12 @@
-#![allow(non_upper_case_globals)]
+#![allow(dead_code)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
+#![allow(unused_imports)]
+#![allow(clippy::all)]
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(unnecessary_transmutes)]
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -8,8 +14,6 @@ use std::ffi::c_void;
 
 use crate::error::Error;
 use crate::error::Result;
-
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 macro_rules! call_optional_fn {
     ($name:expr) => {

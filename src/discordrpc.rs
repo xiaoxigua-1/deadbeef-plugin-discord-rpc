@@ -13,11 +13,12 @@ use crate::{
 };
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Status {
     Paused = 1,
     Songchanged = 2,
     Seeked = 3,
+    Start = 4,
 }
 
 pub fn clear_activity() -> Result<()> {
@@ -66,13 +67,13 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
             start_timestamp = 0;
             end_timestamp = 0;
         }
-        Status::Songchanged | Status::Seeked if timestamp_display_mode != 2 => {
+        Status::Songchanged | Status::Seeked | Status::Start if timestamp_display_mode != 2 => {
             start_timestamp = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .map_err(Error::SystemTimeError)?
                 .as_secs() as i64;
 
-            if let Status::Seeked = playback_status {
+            if playback_status != Status::Songchanged {
                 start_timestamp -= (nowplaying_length()? * api.playback_get_pos()? / 100.0) as i64;
             }
 
@@ -88,6 +89,9 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
         }
         _ => {}
     }
+
+    start_timestamp *= 1000;
+    end_timestamp *= 1000;
 
     if let Some(drpc) = &mut *drpc {
         drpc.set_activity(
