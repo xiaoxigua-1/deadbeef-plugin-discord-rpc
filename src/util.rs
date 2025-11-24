@@ -30,12 +30,6 @@ pub fn nowplaying_format_string(script: &str) -> Result<String> {
         api.tf_eval(Box::into_raw(context), code_script, out_ptr, MAX_LEN as i32)?;
     }
 
-    api.pl_item_unref(nowplaying)?;
-
-    if !nowplaying.is_null() {
-        api.plt_unref(nowplaying_plt)?;
-    }
-
     if !code_script.is_null() {
         api.tf_free(code_script)?;
     }
@@ -65,7 +59,6 @@ pub fn is_streaming() -> Result<bool> {
         let fname = api.pl_find_meta(nowplaying, c":URI".as_ptr())?;
         let result = api.is_local_file(fname)?;
 
-        api.pl_item_unref(nowplaying)?;
         api.pl_unlock()?;
 
         Ok(result)

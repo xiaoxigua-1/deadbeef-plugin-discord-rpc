@@ -126,3 +126,17 @@ impl DB_output_s {
         call_optional_fn!(self.state)
     }
 }
+
+impl Drop for DB_playItem_s {
+    fn drop(&mut self) {
+        let api = crate::API.get().unwrap();
+        let _ = api.pl_item_unref(self);
+    }
+}
+
+impl Drop for ddb_playlist_t {
+    fn drop(&mut self) {
+        let api = crate::API.get().unwrap();
+        let _ = api.plt_unref(self);
+    }
+}
