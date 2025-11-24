@@ -43,5 +43,5 @@ fn main() {
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 
-    fs::write(out_path.join("LICENSE"), content).expect("Failed to write LICENSE.cstr");
+    fs::write(out_path.join("LICENSE"), content).expect("Failed to write LICENSE");
 }
