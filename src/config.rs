@@ -1,6 +1,9 @@
-use std::ffi::CStr;
+use std::{ffi::CStr, sync::LazyLock};
 
-use crate::error::{Error, Result};
+use crate::{
+    deadbeef::{DB_PLUGIN_MISC, DB_misc_t, DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2},
+    error::{Error, Result},
+};
 
 pub const PLUGIN_ID: &CStr = c"discordrpc";
 pub const PLUGIN_NAME: &CStr = c"Discord Rich Presence";
@@ -21,6 +24,33 @@ property "Display cover from" select[2] discordrpc.cover_source 1 "No cover" "Mu
 property "MusicBrainz album query format" entry discorrpc.query_album_script "release:\"%album%\" AND artist:\"%artist%\"";
 "#;
 
+pub static PLUGIN: LazyLock<SafeDBMisc> = LazyLock::new(|| {
+    let mut plugin: Box<DB_misc_t> = unsafe { Box::new(std::mem::zeroed()) };
+
+    plugin.plugin.api_vmajor = 1;
+    plugin.plugin.api_vmajor = 0;
+    plugin.plugin.version_major = 0;
+    plugin.plugin.version_minor = 1;
+    plugin.plugin.flags = DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2;
+    plugin.plugin.type_ = DB_PLUGIN_MISC as i32;
+
+    plugin.plugin.id = PLUGIN_ID.as_ptr();
+    plugin.plugin.name = PLUGIN_NAME.as_ptr();
+    plugin.plugin.descr = PLUGIN_DESC.as_ptr();
+    plugin.plugin.website = PLUGIN_WEBSITE.as_ptr();
+
+    plugin.plugin.copyright = PLUGIN_COPYRIGHT.as_ptr();
+
+    plugin.plugin.configdialog = PLUGIN_SETTING_DLG.as_ptr();
+
+    plugin.plugin.start = Some(crate::start);
+    plugin.plugin.stop = Some(crate::stop);
+    plugin.plugin.message = Some(crate::message);
+
+    SafeDBMisc(plugin)
+});
+
+pub struct SafeDBMisc(pub Box<DB_misc_t>);
 pub struct ConfigKey;
 pub struct ConfigDefault;
 
@@ -64,3 +94,6 @@ impl TryFrom<i32> for CoverSource {
         }
     }
 }
+
+unsafe impl Sync for SafeDBMisc {}
+unsafe impl Send for SafeDBMisc {}

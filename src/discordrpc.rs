@@ -104,8 +104,10 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
         CoverSource::NoCover => "default".to_string(),
     };
 
-    start_timestamp *= 1000;
-    end_timestamp *= 1000;
+    api.trace(format!(
+        "discordrpc: Updating activity: details='{}', state='{}', start_timestamp={}, end_timestamp={}, large_image='{}', icon_text='{}'",
+        details, state, start_timestamp, end_timestamp, large_image, icon_text
+    ));
 
     if let Some(drpc) = &mut *drpc {
         drpc.set_activity(

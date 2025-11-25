@@ -12,6 +12,7 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::c_void;
 
+use crate::config::PLUGIN;
 use crate::error::Error;
 use crate::error::Result;
 
@@ -122,6 +123,38 @@ impl DB_functions_t {
         len: i32,
     ) -> Result<i32> {
         call_optional_fn!(self.tf_eval, context, code_script, out, len)
+    }
+
+    fn log_detailed(
+        &self,
+        plugin: *mut DB_plugin_s,
+        layers: u32,
+        char: *const i8,
+        args: va_list,
+    ) -> Result<()> {
+        call_optional_fn!(self.log_detailed, plugin, layers, char, args)
+    }
+}
+
+impl DB_functions_t {
+    pub fn trace(&self, msg: String) {
+        let c_msg = CString::new(msg).unwrap();
+        let plugin = &PLUGIN.0.plugin as *const DB_plugin_s as *mut DB_plugin_s;
+
+        if cfg!(debug_assertions) {
+            let plugin_id = unsafe { CStr::from_ptr(PLUGIN.0.plugin.id) }.to_string_lossy();
+            let msg_str = c_msg.to_string_lossy();
+
+            println!("[Deadbeef][{}] {}", plugin_id, msg_str);
+        } else {
+            // TODO: idk where this actually shows up.
+            // log_detailed only appears in Deadbeef debug builds or development versions.
+            // In a normal release build, this message will not be visible.
+            self.log_detailed(plugin, DDB_LOG_LAYER_DEFAULT, c_msg.as_ptr(), unsafe {
+                std::mem::zeroed()
+            })
+            .ok();
+        };
     }
 }
 

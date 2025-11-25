@@ -15,8 +15,7 @@ use crate::{
     config::*,
     deadbeef::{
         DB_EV_CONFIGCHANGED, DB_EV_PAUSED, DB_EV_SEEKED, DB_EV_SONGCHANGED, DB_EV_STOP,
-        DB_PLUGIN_MISC, DB_functions_t, DB_misc_t, DB_plugin_s, DB_plugin_t,
-        DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2, ddb_event_trackchange_t,
+        DB_functions_t, DB_misc_t, DB_plugin_t, ddb_event_trackchange_t,
     },
     discordrpc::{Status, clear_activity, create_discord_client, update_activity},
     error::{Error, Result},
@@ -84,6 +83,10 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
     let api = API.get().unwrap();
     let enable = api.conf_get_int(ConfigKey::ENABLE, ConfigDefault::ENABLE);
 
+    api.trace(format!(
+        "discordrpc: message received: id={}, ctx={:?}, p1={}",
+        id, ctx as *mut c_void, p1
+    ));
     let ret = match id {
         DB_EV_CONFIGCHANGED => config_update().ok().is_some(),
         DB_EV_SONGCHANGED => {
@@ -195,39 +198,5 @@ pub unsafe extern "C" fn discordrpc_load(ptr: *const DB_functions_t) -> *mut DB_
         API.set(&*ptr).unwrap();
     }
 
-    let plugin = Box::new(DB_misc_t {
-        plugin: DB_plugin_s {
-            api_vmajor: 1,
-            api_vminor: 0,
-
-            version_major: 0,
-            version_minor: 1,
-
-            flags: DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2,
-            type_: DB_PLUGIN_MISC as i32,
-
-            id: PLUGIN_ID.as_ptr(),
-            name: PLUGIN_NAME.as_ptr(),
-            descr: PLUGIN_DESC.as_ptr(),
-            website: PLUGIN_WEBSITE.as_ptr(),
-            copyright: PLUGIN_COPYRIGHT.as_ptr(),
-
-            configdialog: PLUGIN_SETTING_DLG.as_ptr(),
-
-            start: Some(start),
-            stop: Some(stop),
-            message: Some(message),
-
-            command: None,
-            connect: None,
-            disconnect: None,
-            exec_cmdline: None,
-            get_actions: None,
-            reserved1: 0,
-            reserved2: 0,
-            reserved3: 0,
-        },
-    });
-
-    Box::into_raw(plugin) as *mut DB_plugin_t
+    (&*PLUGIN.0) as *const DB_misc_t as *mut DB_plugin_t
 }
