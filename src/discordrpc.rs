@@ -7,6 +7,7 @@ use discord_rich_presence::{
 
 use crate::{
     API, DRPC,
+    config::{ConfigDefault, ConfigKey},
     deadbeef::ddb_playback_state_e_DDB_PLAYBACK_STATE_PLAYING,
     error::{Error, Result},
     util::{is_streaming, nowplaying_format_string, nowplaying_length},
@@ -36,15 +37,11 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
     let mut drpc = DRPC.lock().unwrap();
     let api = API.get().unwrap();
 
-    let details_script = api.conf_get_str(
-        c"discordrpc.title_script".as_ptr(),
-        c"%title%$if(%ispaused%,' ('paused')')".as_ptr(),
-    )?;
-    let state_script =
-        api.conf_get_str(c"discordrpc.state_script".as_ptr(), c"%artist%".as_ptr())?;
-    let icon_text_script =
-        api.conf_get_str(c"discordrpc.icon_script".as_ptr(), c"%album%".as_ptr())?;
-    let timestamp_display_mode = api.conf_get_int(c"discordrpc.end_timestamp2".as_ptr(), 1)?;
+    let details_script = api.conf_get_str(ConfigKey::TITLE_SCRIPT, ConfigDefault::TITLE_SCRIPT)?;
+    let state_script = api.conf_get_str(ConfigKey::STATE_SCRIPT, ConfigDefault::STATE_SCRIPT)?;
+    let icon_text_script = api.conf_get_str(ConfigKey::ICON_SCRIPT, ConfigDefault::ICON_SCRIPT)?;
+    let timestamp_display_mode =
+        api.conf_get_int(ConfigKey::END_TIMESTAMP2, ConfigDefault::END_TIMESTAMP2)?;
 
     let details = nowplaying_format_string(&details_script)?;
     let state = nowplaying_format_string(&state_script)?;
@@ -111,10 +108,10 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
 }
 
 pub fn create_discord_client() -> Result<DiscordIpcClient> {
-    let client_id = API.get().unwrap().conf_get_str(
-        c"discordrpc.client_id".as_ptr(),
-        c"1440255782418387026".as_ptr(),
-    )?;
+    let client_id = API
+        .get()
+        .unwrap()
+        .conf_get_str(ConfigKey::CLIENT_ID, ConfigDefault::CLIENT_ID)?;
 
     Ok(DiscordIpcClient::new(&client_id))
 }

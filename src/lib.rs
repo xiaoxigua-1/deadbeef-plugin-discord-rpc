@@ -1,24 +1,21 @@
+mod config;
 mod deadbeef;
 mod discordrpc;
 mod error;
 mod util;
 
-use std::{
-    ffi::{CStr, c_void},
-    ptr::null_mut,
-    sync::Mutex,
-};
+use std::{ffi::c_void, ptr::null_mut, sync::Mutex};
 
-use deadbeef::DB_functions_t;
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
 use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
 
 use crate::{
+    config::*,
     deadbeef::{
         DB_EV_CONFIGCHANGED, DB_EV_PAUSED, DB_EV_SEEKED, DB_EV_SONGCHANGED, DB_EV_STOP,
-        DB_PLUGIN_MISC, DB_misc_t, DB_plugin_s, DB_plugin_t, DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2,
-        ddb_event_trackchange_t,
+        DB_PLUGIN_MISC, DB_functions_t, DB_misc_t, DB_plugin_s, DB_plugin_t,
+        DDB_PLUGIN_FLAG_IMPLEMENTS_DECODER2, ddb_event_trackchange_t,
     },
     discordrpc::{Status, clear_activity, create_discord_client, update_activity},
     error::{Error, Result},
@@ -30,31 +27,11 @@ lazy_static! {
     static ref DISCORD_CLIENT_ID: Mutex<Option<String>> = Mutex::new(None);
 }
 
-static PLUGIN_ID: &CStr = c"discordrpc";
-static PLUGIN_NAME: &CStr = c"Discord Rich Presence";
-static PLUGIN_DESC: &CStr =
-    c"Updates Discord Rich Presence with the current track info from DeadBeef.";
-static PLUGIN_WEBSITE: &CStr = c"https://github.com/xiaoxigua-1/deadbeef-plugin-discord-rpc";
-static PLUGIN_COPYRIGHT: &CStr = unsafe {
-    CStr::from_bytes_with_nul_unchecked(include_bytes!(concat!(env!("OUT_DIR"), "/LICENSE")))
-};
-static PLUGIN_SETTING_DLG: &CStr = cr#"
-property "Enable" checkbox discordrpc.enable 1;
-property "Client ID" entry discordrpc.client_id "1440255782418387026";
-property "Title format" entry discordrpc.title_script "%title%$if(%ispaused%,' ('paused')')";
-property "State format" entry discordrpc.state_script "%artist%";
-property "Display time" select[3] discord_presence.end_timestamp2 1 "Only elapsed time" "Full track time" "Don't display time";
-property "Icon text format" entry discordrpc.icon_script "%album%";
-"#;
-
 fn config_update() -> Result<()> {
     let api = API.get().unwrap();
     let mut drpc = DRPC.lock().unwrap();
-    let enable = api.conf_get_int(c"discordrpc.enable".as_ptr(), 1)?;
-    let client_id = api.conf_get_str(
-        c"discordrpc.client_id".as_ptr(),
-        c"1440255782418387026".as_ptr(),
-    )?;
+    let enable = api.conf_get_int(ConfigKey::ENABLE, ConfigDefault::ENABLE)?;
+    let client_id = api.conf_get_str(ConfigKey::CLIENT_ID, ConfigDefault::CLIENT_ID)?;
 
     if let Some(id) = DISCORD_CLIENT_ID.lock().unwrap().as_ref()
         && (id != &client_id || enable == 0)
@@ -98,7 +75,7 @@ extern "C" fn clear_activity_thread(_: *mut c_void) {
 #[unsafe(no_mangle)]
 extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
     let api = API.get().unwrap();
-    let enable = api.conf_get_int(c"discordrpc.enable".as_ptr(), 1);
+    let enable = api.conf_get_int(ConfigKey::ENABLE, ConfigDefault::ENABLE);
 
     let ret = match id {
         DB_EV_CONFIGCHANGED => config_update().ok().is_some(),
