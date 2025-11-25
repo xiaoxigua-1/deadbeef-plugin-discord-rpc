@@ -7,9 +7,10 @@ use discord_rich_presence::{
 
 use crate::{
     API, DRPC,
-    config::{ConfigDefault, ConfigKey},
+    config::{ConfigDefault, ConfigKey, CoverSource},
     deadbeef::ddb_playback_state_e_DDB_PLAYBACK_STATE_PLAYING,
     error::{Error, Result},
+    musicbrainz::get_album_cover_url_from_query,
     util::{is_streaming, nowplaying_format_string, nowplaying_length},
 };
 
@@ -42,6 +43,9 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
     let icon_text_script = api.conf_get_str(ConfigKey::ICON_SCRIPT, ConfigDefault::ICON_SCRIPT)?;
     let timestamp_display_mode =
         api.conf_get_int(ConfigKey::END_TIMESTAMP2, ConfigDefault::END_TIMESTAMP2)?;
+    let cover_source = CoverSource::try_from(
+        api.conf_get_int(ConfigKey::COVER_SOURCE, ConfigDefault::COVER_SOURCE)?,
+    )?;
 
     let details = nowplaying_format_string(&details_script)?;
     let state = nowplaying_format_string(&state_script)?;
@@ -87,6 +91,19 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
         _ => {}
     }
 
+    let large_image = match cover_source {
+        CoverSource::MusicBrainz => {
+            let album_query_script = api.conf_get_str(
+                ConfigKey::QUERY_ALBUM_SCRIPT,
+                ConfigDefault::QUERY_ALBUM_SCRIPT,
+            )?;
+            let album_query = nowplaying_format_string(&album_query_script)?;
+
+            get_album_cover_url_from_query(&album_query).unwrap_or("default".to_string())
+        }
+        CoverSource::NoCover => "default".to_string(),
+    };
+
     start_timestamp *= 1000;
     end_timestamp *= 1000;
 
@@ -95,7 +112,11 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
             Activity::new()
                 .details(&details)
                 .timestamps(Timestamps::new().start(start_timestamp).end(end_timestamp))
-                .assets(Assets::new().large_text(&icon_text))
+                .assets(
+                    Assets::new()
+                        .large_text(&icon_text)
+                        .large_image(&large_image),
+                )
                 .state(&state)
                 .activity_type(ActivityType::Listening),
         )

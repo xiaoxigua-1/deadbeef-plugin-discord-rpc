@@ -2,6 +2,7 @@ mod config;
 mod deadbeef;
 mod discordrpc;
 mod error;
+mod musicbrainz;
 mod util;
 
 use std::{ffi::c_void, ptr::null_mut, sync::Mutex};
@@ -48,6 +49,12 @@ fn config_update() -> Result<()> {
         *DISCORD_CLIENT_ID.lock().unwrap() = Some(client_id);
         *drpc = Some(client);
     }
+    let data = Box::new(UpdateThreadData {
+        status: Status::Start,
+        nextitem_length: None,
+    });
+
+    api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)?;
 
     Ok(())
 }
@@ -64,12 +71,12 @@ extern "C" fn create_update_thread(ptr: *mut c_void) {
     let status = unsafe { (*data).status };
     let nextitem_length = unsafe { (*data).nextitem_length };
 
-    update_activity(status, nextitem_length).unwrap();
+    update_activity(status, nextitem_length).ok(); // TODO: Handle error
 }
 
 #[unsafe(no_mangle)]
 extern "C" fn clear_activity_thread(_: *mut c_void) {
-    clear_activity().unwrap();
+    clear_activity().ok(); // TODO: Handle error
 }
 
 #[unsafe(no_mangle)]
@@ -122,7 +129,6 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
                 && enable == 1
             // TODO: Hide on paused
             {
-                println!("{}", p1);
                 let data = Box::new(UpdateThreadData {
                     status: if p1 == 1 {
                         Status::Paused

@@ -10,4 +10,9 @@ pub enum Error {
     InvalidStatus,
     SystemTimeError(std::time::SystemTimeError),
     FromBytesUntilNulError(FromBytesUntilNulError),
+    InvalidCoverSource,
+    UreqRequestError(ureq::Error),
+    JsonParseError(json::Error),
+
+    MusicbrainzNoReleaseFound,
 }
