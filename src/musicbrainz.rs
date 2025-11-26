@@ -1,19 +1,23 @@
 use json::JsonValue;
+use urlencoding::encode;
 
-use crate::error::{Error, Result};
+use crate::{
+    API,
+    error::{Error, Result},
+};
 
-pub fn query_album_json(query: &str) -> std::result::Result<String, ureq::Error> {
-    ureq::get("https://musicbrainz.org/ws/2/release")
-        .query("query", query)
-        .query("fmt", "json")
-        .query("type", "album")
-        .call()?
-        .body_mut()
-        .read_to_string()
+pub fn query_album_json(query: &str) -> Result<String> {
+    let url = format!(
+        "https://musicbrainz.org/ws/2/release?query={}&fmt=json",
+        encode(query)
+    );
+    let api = API.get().unwrap();
+
+    api.http_get(&url)
 }
 
 pub fn query_album(query: &str) -> Result<String> {
-    let json_raw = query_album_json(query).map_err(Error::UreqRequestError)?;
+    let json_raw = query_album_json(query)?;
     let json = json::parse(&json_raw).map_err(Error::JsonParseError)?;
 
     if let JsonValue::Object(object) = json

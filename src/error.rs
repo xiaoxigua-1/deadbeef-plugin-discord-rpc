@@ -11,7 +11,6 @@ pub enum Error {
     SystemTimeError(std::time::SystemTimeError),
     FromBytesUntilNulError(FromBytesUntilNulError),
     InvalidCoverSource,
-    UreqRequestError(ureq::Error),
     JsonParseError(json::Error),
 
     MusicbrainzNoReleaseFound,

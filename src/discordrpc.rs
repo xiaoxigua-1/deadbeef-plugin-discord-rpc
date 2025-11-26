@@ -105,7 +105,7 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
     };
 
     api.trace(format!(
-        "discordrpc: Updating activity: details='{}', state='{}', start_timestamp={}, end_timestamp={}, large_image='{}', icon_text='{}'",
+        "Updating activity: details='{}', state='{}', start_timestamp={}, end_timestamp={}, large_image='{}', icon_text='{}'",
         details, state, start_timestamp, end_timestamp, large_image, icon_text
     ));
 

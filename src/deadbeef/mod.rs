@@ -8,6 +8,8 @@
 #![allow(unnecessary_transmutes)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+mod http;
+
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::c_void;
@@ -123,6 +125,30 @@ impl DB_functions_t {
         len: i32,
     ) -> Result<i32> {
         call_optional_fn!(self.tf_eval, context, code_script, out, len)
+    }
+
+    pub fn fopen(&self, url: &str) -> Result<*mut DB_FILE> {
+        let c_str = CString::new(url).unwrap();
+
+        call_optional_fn!(self.fopen, c_str.as_ptr())
+    }
+
+    pub fn fclose(&self, file: *mut DB_FILE) -> Result<()> {
+        call_optional_fn!(self.fclose, file)
+    }
+
+    pub fn fgetlength(&self, file: *mut DB_FILE) -> Result<i64> {
+        call_optional_fn!(self.fgetlength, file)
+    }
+
+    pub fn fread(
+        &self,
+        ptr: *mut c_void,
+        size: usize,
+        nmemb: usize,
+        stream: *mut DB_FILE,
+    ) -> Result<usize> {
+        call_optional_fn!(self.fread, ptr, size, nmemb, stream)
     }
 
     fn log_detailed(

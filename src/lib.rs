@@ -48,12 +48,8 @@ fn config_update() -> Result<()> {
         *DISCORD_CLIENT_ID.lock().unwrap() = Some(client_id);
         *drpc = Some(client);
     }
-    let data = Box::new(UpdateThreadData {
-        status: Status::Start,
-        nextitem_length: None,
-    });
 
-    api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)?;
+    // TODO: Update activity on config change
 
     Ok(())
 }
@@ -84,7 +80,7 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
     let enable = api.conf_get_int(ConfigKey::ENABLE, ConfigDefault::ENABLE);
 
     api.trace(format!(
-        "discordrpc: message received: id={}, ctx={:?}, p1={}",
+        "message received: id={}, ctx={:?}, p1={}",
         id, ctx as *mut c_void, p1
     ));
     let ret = match id {
