@@ -22,8 +22,8 @@ pub fn nowplaying_format_string(script: &str) -> Result<String> {
     let out_ptr = out.as_mut_ptr() as *mut c_char;
 
     context._size = std::mem::size_of::<ddb_tf_context_t>() as i32;
-    context.it = nowplaying;
-    context.plt = nowplaying_plt;
+    context.it = nowplaying.as_ptr();
+    context.plt = nowplaying_plt.as_ptr();
     context.iter = PL_MAIN as i32;
 
     if !code_script.is_null() {
@@ -44,7 +44,7 @@ pub fn nowplaying_length() -> Result<f32> {
     let nowplaying = api.streamer_get_playing_track()?;
 
     if !nowplaying.is_null() {
-        Ok(API.get().unwrap().pl_get_item_duration(nowplaying)?)
+        Ok(API.get().unwrap().pl_get_item_duration(&nowplaying)?)
     } else {
         Ok(0.0)
     }
@@ -56,7 +56,7 @@ pub fn is_streaming() -> Result<bool> {
     if !nowplaying.is_null() {
         api.pl_lock()?;
 
-        let fname = api.pl_find_meta(nowplaying, c":URI".as_ptr())?;
+        let fname = api.pl_find_meta(&nowplaying, c":URI".as_ptr())?;
         let result = api.is_local_file(fname)?;
 
         api.pl_unlock()?;

@@ -5,7 +5,7 @@ mod error;
 mod musicbrainz;
 mod util;
 
-use std::{ffi::c_void, ptr::null_mut, sync::Mutex};
+use std::{ffi::c_void, mem, ptr::null_mut, sync::Mutex};
 
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
 use lazy_static::lazy_static;
@@ -16,6 +16,7 @@ use crate::{
     deadbeef::{
         DB_EV_CONFIGCHANGED, DB_EV_PAUSED, DB_EV_SEEKED, DB_EV_SONGCHANGED, DB_EV_STOP,
         DB_functions_t, DB_misc_t, DB_plugin_t, ddb_event_trackchange_t,
+        safe_wrapper::SafeDBPlayItem,
     },
     discordrpc::{Status, clear_activity, create_discord_client, update_activity},
     error::{Error, Result},
@@ -92,13 +93,15 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
                 && enable == 1
                 && !unsafe { (*ctx).to.is_null() }
             {
-                let nextitem_length = api.pl_get_item_duration(unsafe { (*ctx).to }).ok();
+                let playlist_item = unsafe { SafeDBPlayItem::new((*ctx).to) };
+                let nextitem_length = api.pl_get_item_duration(&playlist_item).ok();
 
                 let data = Box::new(UpdateThreadData {
                     status: Status::Songchanged,
                     nextitem_length,
                 });
 
+                mem::forget(playlist_item);
                 api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
                     .ok()
                     .is_some()

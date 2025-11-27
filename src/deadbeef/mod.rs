@@ -9,12 +9,16 @@
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 mod http;
+pub mod safe_wrapper;
 
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::c_void;
 
 use crate::config::PLUGIN;
+use crate::deadbeef::safe_wrapper::SafeDBFile;
+use crate::deadbeef::safe_wrapper::SafeDBPlayItem;
+use crate::deadbeef::safe_wrapper::SafeDBPlayList;
 use crate::error::Error;
 use crate::error::Result;
 
@@ -34,12 +38,16 @@ macro_rules! call_optional_fn {
 }
 
 impl DB_functions_t {
-    pub fn streamer_get_playing_track(&self) -> Result<*mut DB_playItem_s> {
-        call_optional_fn!(self.streamer_get_playing_track)
+    pub fn streamer_get_playing_track(&self) -> Result<SafeDBPlayItem> {
+        let ptr = call_optional_fn!(self.streamer_get_playing_track)?;
+
+        Ok(SafeDBPlayItem::new(ptr))
     }
 
-    pub fn plt_get_curr(&self) -> Result<*mut ddb_playlist_t> {
-        call_optional_fn!(self.plt_get_curr)
+    pub fn plt_get_curr(&self) -> Result<SafeDBPlayList> {
+        let ptr = call_optional_fn!(self.plt_get_curr)?;
+
+        Ok(SafeDBPlayList::new(ptr))
     }
 
     pub fn tf_compile(&self, script: &str) -> Result<*mut i8> {
@@ -58,16 +66,16 @@ impl DB_functions_t {
         call_optional_fn!(self.tf_free, code_script)
     }
 
-    pub fn pl_get_item_duration(&self, item: *mut DB_playItem_s) -> Result<f32> {
-        call_optional_fn!(self.pl_get_item_duration, item)
+    pub fn pl_get_item_duration(&self, item: &SafeDBPlayItem) -> Result<f32> {
+        call_optional_fn!(self.pl_get_item_duration, item.as_ptr())
     }
 
     pub fn pl_lock(&self) -> Result<()> {
         call_optional_fn!(self.pl_lock)
     }
 
-    pub fn pl_find_meta(&self, plt: *mut DB_playItem_s, value: *const i8) -> Result<*const i8> {
-        call_optional_fn!(self.pl_find_meta, plt, value)
+    pub fn pl_find_meta(&self, plt: &SafeDBPlayItem, value: *const i8) -> Result<*const i8> {
+        call_optional_fn!(self.pl_find_meta, plt.as_ptr(), value)
     }
 
     pub fn is_local_file(&self, item: *const i8) -> Result<bool> {
@@ -127,18 +135,19 @@ impl DB_functions_t {
         call_optional_fn!(self.tf_eval, context, code_script, out, len)
     }
 
-    pub fn fopen(&self, url: &str) -> Result<*mut DB_FILE> {
+    pub fn fopen(&self, url: &str) -> Result<SafeDBFile> {
         let c_str = CString::new(url).unwrap();
+        let ptr = call_optional_fn!(self.fopen, c_str.as_ptr())?;
 
-        call_optional_fn!(self.fopen, c_str.as_ptr())
+        Ok(SafeDBFile::new(ptr))
     }
 
     pub fn fclose(&self, file: *mut DB_FILE) -> Result<()> {
         call_optional_fn!(self.fclose, file)
     }
 
-    pub fn fgetlength(&self, file: *mut DB_FILE) -> Result<i64> {
-        call_optional_fn!(self.fgetlength, file)
+    pub fn fgetlength(&self, file: &SafeDBFile) -> Result<i64> {
+        call_optional_fn!(self.fgetlength, file.as_ptr())
     }
 
     pub fn fread(
@@ -146,9 +155,9 @@ impl DB_functions_t {
         ptr: *mut c_void,
         size: usize,
         nmemb: usize,
-        stream: *mut DB_FILE,
+        stream: &SafeDBFile,
     ) -> Result<usize> {
-        call_optional_fn!(self.fread, ptr, size, nmemb, stream)
+        call_optional_fn!(self.fread, ptr, size, nmemb, stream.as_ptr())
     }
 
     fn log_detailed(
@@ -187,19 +196,5 @@ impl DB_functions_t {
 impl DB_output_s {
     pub fn state(&self) -> Result<u32> {
         call_optional_fn!(self.state)
-    }
-}
-
-impl Drop for DB_playItem_s {
-    fn drop(&mut self) {
-        let api = crate::API.get().unwrap();
-        let _ = api.pl_item_unref(self);
-    }
-}
-
-impl Drop for ddb_playlist_t {
-    fn drop(&mut self) {
-        let api = crate::API.get().unwrap();
-        let _ = api.plt_unref(self);
     }
 }
