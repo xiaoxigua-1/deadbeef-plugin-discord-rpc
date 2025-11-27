@@ -5,7 +5,12 @@ mod error;
 mod musicbrainz;
 mod util;
 
-use std::{ffi::c_void, mem, ptr::null_mut, sync::Mutex};
+use std::{
+    ffi::c_void,
+    mem,
+    ptr::null_mut,
+    sync::{Arc, Mutex},
+};
 
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
 use lazy_static::lazy_static;
@@ -63,11 +68,9 @@ struct UpdateThreadData {
 
 #[unsafe(no_mangle)]
 extern "C" fn create_update_thread(ptr: *mut c_void) {
-    let data = ptr as *mut UpdateThreadData;
-    let status = unsafe { (*data).status };
-    let nextitem_length = unsafe { (*data).nextitem_length };
+    let data = unsafe { Arc::from_raw(ptr as *mut UpdateThreadData) };
 
-    update_activity(status, nextitem_length).ok(); // TODO: Handle error
+    update_activity(data.status, data.nextitem_length).ok(); // TODO: Handle error
 }
 
 #[unsafe(no_mangle)]
@@ -96,13 +99,13 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
                 let playlist_item = unsafe { SafeDBPlayItem::new((*ctx).to) };
                 let nextitem_length = api.pl_get_item_duration(&playlist_item).ok();
 
-                let data = Box::new(UpdateThreadData {
+                let data = Arc::new(UpdateThreadData {
                     status: Status::Songchanged,
                     nextitem_length,
                 });
 
                 mem::forget(playlist_item);
-                api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
+                api.thread_start(create_update_thread, Arc::into_raw(data) as *mut c_void)
                     .ok()
                     .is_some()
             } else {
@@ -115,11 +118,11 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
             if let Ok(enable) = enable
                 && enable == 1
             {
-                let data = Box::new(UpdateThreadData {
+                let data = Arc::new(UpdateThreadData {
                     status: Status::Seeked,
                     nextitem_length: None,
                 });
-                api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
+                api.thread_start(create_update_thread, Arc::into_raw(data) as *mut c_void)
                     .ok()
                     .is_some()
             } else {
@@ -131,7 +134,7 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
                 && enable == 1
             // TODO: Hide on paused
             {
-                let data = Box::new(UpdateThreadData {
+                let data = Arc::new(UpdateThreadData {
                     status: if p1 == 1 {
                         Status::Paused
                     } else {
@@ -139,7 +142,7 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
                     },
                     nextitem_length: None,
                 });
-                api.thread_start(create_update_thread, Box::into_raw(data) as *mut c_void)
+                api.thread_start(create_update_thread, Arc::into_raw(data) as *mut c_void)
                     .ok()
                     .is_some()
             } else {

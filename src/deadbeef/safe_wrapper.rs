@@ -25,7 +25,6 @@ macro_rules! safe_wrapper {
             fn drop(&mut self) {
                 let api = API.get().unwrap();
 
-                println!("Dropping {} wrapper", stringify!($name));
                 if !self.inner.is_null() {
                     let _ = api.$free(self.inner);
                 }
