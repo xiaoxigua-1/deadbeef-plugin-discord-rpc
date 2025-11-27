@@ -24,9 +24,11 @@ pub enum Status {
 }
 
 pub fn clear_activity() -> Result<()> {
+    let api = API.get().unwrap();
     let mut drpc = DRPC.lock().unwrap();
 
     if let Some(drpc) = &mut *drpc {
+        api.trace("Clearing Discord activity.".to_string());
         drpc.clear_activity().map_err(Error::DiscordFailed)?;
     }
 
@@ -35,7 +37,6 @@ pub fn clear_activity() -> Result<()> {
 
 pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) -> Result<()> {
     let mut playback_status = playback_status;
-    let mut drpc = DRPC.lock().unwrap();
     let api = API.get().unwrap();
 
     let details_script = api.conf_get_str(ConfigKey::TITLE_SCRIPT, ConfigDefault::TITLE_SCRIPT)?;
@@ -47,32 +48,33 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
         api.conf_get_int(ConfigKey::COVER_SOURCE, ConfigDefault::COVER_SOURCE)?,
     )?;
 
+    let hide_on_pause =
+        api.conf_get_int(ConfigKey::HIDE_ON_PAUSE, ConfigDefault::HIDE_ON_PAUSE)? == 1;
+
     let details = nowplaying_format_string(&details_script)?;
     let state = nowplaying_format_string(&state_script)?;
     let icon_text = nowplaying_format_string(&icon_text_script)?;
-    let mut start_timestamp: i64 = 0;
-    let mut end_timestamp: i64 = 0;
+    let mut timestamp = Timestamps::new();
 
     if let Status::Seeked = playback_status
-        && !api.get_output()?.is_null()
-        && unsafe { &*api.get_output()? }.state()?
-            != ddb_playback_state_e_DDB_PLAYBACK_STATE_PLAYING
+        && let Some(output) = unsafe { api.get_output()?.as_ref() }
+        && output.state()? != ddb_playback_state_e_DDB_PLAYBACK_STATE_PLAYING
     {
         playback_status = Status::Paused;
 
-        // TODO: Hide on paused
+        if hide_on_pause {
+            clear_activity()?;
+            return Ok(());
+        }
     }
 
     match playback_status {
-        Status::Paused => {
-            start_timestamp = 0;
-            end_timestamp = 0;
-        }
-        Status::Songchanged | Status::Seeked | Status::Start if timestamp_display_mode != 2 => {
-            start_timestamp = SystemTime::now()
+        Status::Songchanged | Status::Seeked | Status::Start => {
+            let mut start_timestamp = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .map_err(Error::SystemTimeError)?
                 .as_secs() as i64;
+            let mut end_timestamp: i64 = start_timestamp;
 
             if playback_status != Status::Songchanged {
                 start_timestamp -= (nowplaying_length()? * api.playback_get_pos()? / 100.0) as i64;
@@ -87,6 +89,8 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
                     end_timestamp = start_timestamp + nowplaying_length()? as i64;
                 }
             }
+
+            timestamp = Timestamps::new().start(start_timestamp).end(end_timestamp);
         }
         _ => {}
     }
@@ -105,15 +109,15 @@ pub fn update_activity(playback_status: Status, nextitem_length: Option<f32>) ->
     };
 
     api.trace(format!(
-        "Updating activity: details='{}', state='{}', start_timestamp={}, end_timestamp={}, large_image='{}', icon_text='{}'",
-        details, state, start_timestamp, end_timestamp, large_image, icon_text
+        "Updating activity: details='{}', state='{}', large_image='{}', icon_text='{}'",
+        details, state, large_image, icon_text
     ));
 
-    if let Some(drpc) = &mut *drpc {
+    if let Some(drpc) = &mut *DRPC.lock().unwrap() {
         drpc.set_activity(
             Activity::new()
                 .details(&details)
-                .timestamps(Timestamps::new().start(start_timestamp).end(end_timestamp))
+                .timestamps(timestamp)
                 .assets(
                     Assets::new()
                         .large_text(&icon_text)

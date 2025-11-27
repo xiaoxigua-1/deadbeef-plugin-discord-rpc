@@ -18,7 +18,8 @@ property "Enable" checkbox discordrpc.enable 1;
 property "Client ID" entry discordrpc.client_id "1440255782418387026";
 property "Title format" entry discordrpc.title_script "%title%$if(%ispaused%,' ('paused')')";
 property "State format" entry discordrpc.state_script "%artist%";
-property "Display time" select[3] discord_presence.end_timestamp2 1 "Only elapsed time" "Full track time" "Don't display time";
+property "Display time" select[2] discord_presence.end_timestamp2 1 "Only elapsed time" "Full track time";
+property "Hide on pause" checkbox discordrpc.hide_on_pause 0;
 property "Icon text format" entry discordrpc.icon_script "%album%";
 property "Display cover from" select[2] discordrpc.cover_source 1 "No cover" "MusicBrainz";
 property "MusicBrainz album query format" entry discorrpc.query_album_script "release:\"%album%\" AND artist:\"%artist%\"";
@@ -63,6 +64,7 @@ impl ConfigKey {
     pub const ICON_SCRIPT: *const i8 = c"discordrpc.icon_script".as_ptr();
     pub const COVER_SOURCE: *const i8 = c"discordrpc.cover_source".as_ptr();
     pub const QUERY_ALBUM_SCRIPT: *const i8 = c"discorrpc.query_album_script".as_ptr();
+    pub const HIDE_ON_PAUSE: *const i8 = c"discordrpc.hide_on_pause".as_ptr();
 }
 
 impl ConfigDefault {
@@ -75,6 +77,7 @@ impl ConfigDefault {
     pub const COVER_SOURCE: i32 = CoverSource::MusicBrainz as i32;
     pub const QUERY_ALBUM_SCRIPT: *const i8 =
         cr#"release:\"%album%\" AND artist:\"%artist%\""#.as_ptr();
+    pub const HIDE_ON_PAUSE: i32 = 0;
 }
 
 #[repr(i32)]
