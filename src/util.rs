@@ -27,12 +27,7 @@ pub fn nowplaying_format_string(script: &str) -> Result<String> {
     context.iter = PL_MAIN as i32;
 
     if !code_script.is_null() {
-        api.tf_eval(
-            Box::into_raw(context),
-            &code_script,
-            out_ptr,
-            MAX_LEN as i32,
-        )?;
+        api.tf_eval(context.as_mut(), &code_script, out_ptr, MAX_LEN as i32)?;
     }
 
     let c_str = CStr::from_bytes_until_nul(&out).map_err(Error::FromBytesUntilNulError)?;

@@ -90,13 +90,13 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
     let ret = match id {
         DB_EV_CONFIGCHANGED => config_update().ok().is_some(),
         DB_EV_SONGCHANGED => {
-            let ctx = ctx as *mut ddb_event_trackchange_t;
+            let ctx = unsafe { (ctx as *mut ddb_event_trackchange_t).as_ref() };
 
             if let Ok(enable) = enable
                 && enable == 1
-                && !unsafe { (*ctx).to.is_null() }
+                && let Some(ctx) = ctx
             {
-                let playlist_item = unsafe { SafeDBPlayItem::new((*ctx).to) };
+                let playlist_item = SafeDBPlayItem::new(ctx.to);
                 let nextitem_length = api.pl_get_item_duration(&playlist_item).ok();
 
                 let data = Arc::new(UpdateThreadData {

@@ -51,26 +51,6 @@ impl DB_functions_t {
         Ok(SafeDBPlayList::new(ptr))
     }
 
-    pub fn tf_compile(&self, script: &str) -> Result<SafeDBTitleFormat> {
-        let ptr = call_optional_fn!(self.tf_compile, CString::new(script).unwrap().as_ptr())?;
-
-        Ok(SafeDBTitleFormat::new(ptr))
-    }
-
-    pub fn tf_eval(
-        &self,
-        context: *mut ddb_tf_context_s,
-        code_script: &SafeDBTitleFormat,
-        out: *mut i8,
-        len: i32,
-    ) -> Result<i32> {
-        call_optional_fn!(self.tf_eval, context, code_script.as_ptr(), out, len)
-    }
-
-    pub fn tf_free(&self, code_script: *mut i8) -> Result<()> {
-        call_optional_fn!(self.tf_free, code_script)
-    }
-
     pub fn pl_item_unref(&self, item: *mut DB_playItem_s) -> Result<()> {
         call_optional_fn!(self.pl_item_unref, item)
     }
@@ -116,7 +96,31 @@ impl DB_functions_t {
     ) -> Result<isize> {
         call_optional_fn!(self.thread_start, Some(func), args)
     }
+}
 
+impl DB_functions_t {
+    pub fn tf_compile(&self, script: &str) -> Result<SafeDBTitleFormat> {
+        let ptr = call_optional_fn!(self.tf_compile, CString::new(script).unwrap().as_ptr())?;
+
+        Ok(SafeDBTitleFormat::new(ptr))
+    }
+
+    pub fn tf_eval(
+        &self,
+        context: *mut ddb_tf_context_s,
+        code_script: &SafeDBTitleFormat,
+        out: *mut i8,
+        len: i32,
+    ) -> Result<i32> {
+        call_optional_fn!(self.tf_eval, context, code_script.as_ptr(), out, len)
+    }
+
+    pub fn tf_free(&self, code_script: *mut i8) -> Result<()> {
+        call_optional_fn!(self.tf_free, code_script)
+    }
+}
+
+impl DB_functions_t {
     pub fn conf_get_str(&self, key: *const i8, def: *const i8) -> Result<String> {
         let mut buf = vec![0u8; 256];
 
@@ -137,7 +141,9 @@ impl DB_functions_t {
     pub fn conf_get_int(&self, key: *const i8, def: i32) -> Result<i32> {
         call_optional_fn!(self.conf_get_int, key, def)
     }
+}
 
+impl DB_functions_t {
     pub fn fopen(&self, url: &str) -> Result<SafeDBFile> {
         let c_str = CString::new(url).unwrap();
         let ptr = call_optional_fn!(self.fopen, c_str.as_ptr())?;
@@ -162,7 +168,9 @@ impl DB_functions_t {
     ) -> Result<usize> {
         call_optional_fn!(self.fread, ptr, size, nmemb, stream.as_ptr())
     }
+}
 
+impl DB_functions_t {
     fn log_detailed(
         &self,
         plugin: *mut DB_plugin_s,
@@ -172,9 +180,7 @@ impl DB_functions_t {
     ) -> Result<()> {
         call_optional_fn!(self.log_detailed, plugin, layers, char, args)
     }
-}
 
-impl DB_functions_t {
     pub fn trace(&self, msg: String) {
         let c_msg = CString::new(msg).unwrap();
         let plugin = &PLUGIN.0.plugin as *const DB_plugin_s as *mut DB_plugin_s;
