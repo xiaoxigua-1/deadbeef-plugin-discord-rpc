@@ -38,10 +38,6 @@ fn config_update() -> Result<()> {
     let api = API.get().unwrap();
     let enable = api.conf_get_int(ConfigKey::ENABLE, ConfigDefault::ENABLE)?;
     let client_id = api.conf_get_str(ConfigKey::CLIENT_ID, ConfigDefault::CLIENT_ID)?;
-    let data = Arc::new(UpdateThreadData {
-        status: Status::Seeked,
-        nextitem_length: None,
-    });
 
     if let Some(id) = DISCORD_CLIENT_ID.lock().unwrap().as_ref()
         && (id != &client_id || enable == 0)
@@ -71,7 +67,15 @@ fn config_update() -> Result<()> {
         && let Some(output) = unsafe { api.get_output()?.as_ref() }
         && output.state()? != ddb_playback_state_e_DDB_PLAYBACK_STATE_STOPPED
     {
-        api.thread_start(create_update_thread, Arc::into_raw(data) as *mut c_void)?;
+        let data = Arc::new(UpdateThreadData {
+            status: Status::Seeked,
+            nextitem_length: None,
+        });
+        let raw_ptr = Arc::into_raw(data);
+        if let Err(e) = api.thread_start(create_update_thread, raw_ptr as *mut c_void) {
+            unsafe { Arc::from_raw(raw_ptr) };
+            return Err(e);
+        }
     }
 
     Ok(())
@@ -134,16 +138,20 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
             {
                 let playlist_item = SafeDBPlayItem::new(ctx.to);
                 let nextitem_length = api.pl_get_item_duration(&playlist_item).ok();
-
                 let data = Arc::new(UpdateThreadData {
                     status: Status::Songchanged,
                     nextitem_length,
                 });
+                let raw_ptr = Arc::into_raw(data);
 
                 mem::forget(playlist_item);
-                api.thread_start(create_update_thread, Arc::into_raw(data) as *mut c_void)
-                    .ok()
-                    .is_some()
+                match api.thread_start(create_update_thread, raw_ptr as *mut c_void) {
+                    Ok(_) => true,
+                    Err(_) => {
+                        unsafe { Arc::from_raw(raw_ptr) };
+                        false
+                    }
+                }
             } else {
                 api.thread_start(clear_activity_thread, null_mut())
                     .ok()
@@ -158,9 +166,15 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
                     status: Status::Seeked,
                     nextitem_length: None,
                 });
-                api.thread_start(create_update_thread, Arc::into_raw(data) as *mut c_void)
-                    .ok()
-                    .is_some()
+                let raw_ptr = Arc::into_raw(data);
+
+                match api.thread_start(create_update_thread, raw_ptr as *mut c_void) {
+                    Ok(_) => true,
+                    Err(_) => {
+                        unsafe { Arc::from_raw(raw_ptr) };
+                        false
+                    }
+                }
             } else {
                 true
             }
@@ -177,9 +191,14 @@ extern "C" fn message(id: u32, ctx: usize, p1: u32, _: u32) -> i32 {
                     },
                     nextitem_length: None,
                 });
-                api.thread_start(create_update_thread, Arc::into_raw(data) as *mut c_void)
-                    .ok()
-                    .is_some()
+                let raw_ptr = Arc::into_raw(data);
+                match api.thread_start(create_update_thread, raw_ptr as *mut c_void) {
+                    Ok(_) => true,
+                    Err(_) => {
+                        unsafe { Arc::from_raw(raw_ptr) };
+                        false
+                    }
+                }
             } else {
                 api.thread_start(clear_activity_thread, null_mut())
                     .ok()

@@ -52,12 +52,14 @@ pub fn is_streaming() -> Result<bool> {
     if !nowplaying.is_null() {
         api.pl_lock()?;
 
-        let fname = api.pl_find_meta(&nowplaying, c":URI".as_ptr())?;
-        let result = api.is_local_file(fname)?;
+        let result = (|| -> Result<bool> {
+            let fname = api.pl_find_meta(&nowplaying, c":URI".as_ptr())?;
+            api.is_local_file(fname)
+        })();
 
         api.pl_unlock()?;
 
-        Ok(result)
+        result
     } else {
         Ok(false)
     }

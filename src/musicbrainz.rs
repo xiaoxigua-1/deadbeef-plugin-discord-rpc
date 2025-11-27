@@ -8,7 +8,7 @@ use crate::{
 
 fn query_album_json(query: &str) -> Result<String> {
     let url = format!(
-        "https://musicbrainz.org/ws/2/release?query={}&fmt=json",
+        "https://musicbrainz.org/ws/2/release?query={}&fmt=json&limit=10",
         encode(query)
     );
     let api = API.get().unwrap();
