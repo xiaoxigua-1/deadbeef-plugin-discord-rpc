@@ -19,6 +19,7 @@ use crate::config::PLUGIN;
 use crate::deadbeef::safe_wrapper::SafeDBFile;
 use crate::deadbeef::safe_wrapper::SafeDBPlayItem;
 use crate::deadbeef::safe_wrapper::SafeDBPlayList;
+use crate::deadbeef::safe_wrapper::SafeDBTitleFormat;
 use crate::error::Error;
 use crate::error::Result;
 
@@ -50,8 +51,24 @@ impl DB_functions_t {
         Ok(SafeDBPlayList::new(ptr))
     }
 
-    pub fn tf_compile(&self, script: &str) -> Result<*mut i8> {
-        call_optional_fn!(self.tf_compile, CString::new(script).unwrap().as_ptr())
+    pub fn tf_compile(&self, script: &str) -> Result<SafeDBTitleFormat> {
+        let ptr = call_optional_fn!(self.tf_compile, CString::new(script).unwrap().as_ptr())?;
+
+        Ok(SafeDBTitleFormat::new(ptr))
+    }
+
+    pub fn tf_eval(
+        &self,
+        context: *mut ddb_tf_context_s,
+        code_script: &SafeDBTitleFormat,
+        out: *mut i8,
+        len: i32,
+    ) -> Result<i32> {
+        call_optional_fn!(self.tf_eval, context, code_script.as_ptr(), out, len)
+    }
+
+    pub fn tf_free(&self, code_script: *mut i8) -> Result<()> {
+        call_optional_fn!(self.tf_free, code_script)
     }
 
     pub fn pl_item_unref(&self, item: *mut DB_playItem_s) -> Result<()> {
@@ -60,10 +77,6 @@ impl DB_functions_t {
 
     pub fn plt_unref(&self, plt: *mut ddb_playlist_t) -> Result<()> {
         call_optional_fn!(self.plt_unref, plt)
-    }
-
-    pub fn tf_free(&self, code_script: *mut i8) -> Result<()> {
-        call_optional_fn!(self.tf_free, code_script)
     }
 
     pub fn pl_get_item_duration(&self, item: &SafeDBPlayItem) -> Result<f32> {
@@ -123,16 +136,6 @@ impl DB_functions_t {
 
     pub fn conf_get_int(&self, key: *const i8, def: i32) -> Result<i32> {
         call_optional_fn!(self.conf_get_int, key, def)
-    }
-
-    pub fn tf_eval(
-        &self,
-        context: *mut ddb_tf_context_s,
-        code_script: *const i8,
-        out: *mut i8,
-        len: i32,
-    ) -> Result<i32> {
-        call_optional_fn!(self.tf_eval, context, code_script, out, len)
     }
 
     pub fn fopen(&self, url: &str) -> Result<SafeDBFile> {

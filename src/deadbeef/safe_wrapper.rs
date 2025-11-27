@@ -36,3 +36,4 @@ macro_rules! safe_wrapper {
 safe_wrapper!(SafeDBFile, DB_FILE, fclose);
 safe_wrapper!(SafeDBPlayItem, DB_playItem_s, pl_item_unref);
 safe_wrapper!(SafeDBPlayList, ddb_playlist_t, plt_unref);
+safe_wrapper!(SafeDBTitleFormat, i8, tf_free);
